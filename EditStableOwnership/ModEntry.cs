@@ -7,6 +7,8 @@ using predo.sdvmods.EditStableOwnership.Framework;
 using predo.sdvmods.EditStableOwnership.Compatibility;
 using EditStableOwnership;
 using Netcode;
+using StardewValley.Characters;
+using Microsoft.Xna.Framework;
 
 namespace predo.sdvmods.EditStableOwnership
 {
@@ -78,15 +80,17 @@ namespace predo.sdvmods.EditStableOwnership
         }
 
         /// <summary>Set a new owner for a given stable.</summary>
-        private void SetNewStableOwner(Stable stable, string farmer_id, FarmerCollection farmers)
+        private void SetNewStableOwner(Stable stable, string farmer_umi, FarmerCollection farmers)
         {
             foreach(var farmer in farmers)
             {
-                if ($"{farmer.UniqueMultiplayerID}" == farmer_id)
+                if (farmer.UniqueMultiplayerID.ToString() == farmer_umi)
                 {
                     this.Monitor.Log($"Previous owner: {stable.owner.Value} - New owner: {farmer.UniqueMultiplayerID}", LogLevel.Info);
                     stable.owner.Value = farmer.UniqueMultiplayerID;
-                    Utility.findHorse(stable.HorseId).ownerId.Value = farmer.UniqueMultiplayerID;
+                    Horse horse = stable.getStableHorse();
+                    horse.ownerId.Value = farmer.UniqueMultiplayerID;
+                    horse.Name = "";
                     Game1.addHUDMessage(new HUDMessage(I18n.Alert_StableNewOwner()+farmer.Name, HUDMessage.newQuest_type) { timeLeft = 2000 });
                     break;
                 }
