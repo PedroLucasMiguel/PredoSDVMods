@@ -8,14 +8,15 @@ using predo.sdvmods.EditStableOwnership.Compatibility;
 using EditStableOwnership;
 using Netcode;
 using StardewValley.Characters;
-using Microsoft.Xna.Framework;
 
 namespace predo.sdvmods.EditStableOwnership
-{
+{  
     /// <summary>The mod entry point.</summary>
     internal sealed class ModEntry : Mod
     {
         private static ModConfig _modConfig = new ModConfig();
+
+        private static bool _enableMod = true;
 
         /*********
         ** Public methods
@@ -26,8 +27,9 @@ namespace predo.sdvmods.EditStableOwnership
         {
             I18n.Init(helper.Translation);
 
-            helper.Events.Input.ButtonPressed += OnButtonPressed;
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
+            helper.Events.Input.ButtonPressed += OnButtonPressed;
+            helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
         }
 
         /*********
@@ -63,15 +65,26 @@ namespace predo.sdvmods.EditStableOwnership
             );
         }
 
+        private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
+        {
+            if (Game1.server == null || !Context.IsMainPlayer)
+            {
+                this.Monitor.Log("Mod Disabled. Only works for the main player in multiplayer.", LogLevel.Warn);
+                _enableMod = false;
+            }
+            else
+                _enableMod = true;
+        }
+
         /// <summary>Raised after the player presses a button on the keyboard, controller, or mouse.</summary>
         private void OnButtonPressed(object? sender, ButtonPressedEventArgs e)
         {
-            // ignore if player hasn't loaded a save yet
-            if (!Context.IsWorldReady)
+            // Ignore if player hasn't loaded a save yet or the game is singleplayer
+            if (!Context.IsWorldReady || !_enableMod)
                 return;
             
             // Checking if the player is playing on multiplayer and it is the "master player"
-            if (Game1.server != null && Game1.player.userID == Game1.MasterPlayer.userID && Game1.player.currentLocation is Farm)
+            if (Game1.player.currentLocation is Farm)
             {
                 if (_modConfig.ChangeStableOwnerKeybing.JustPressed())
                     ChangeStableOwnership(e.Cursor, Game1.getOnlineFarmers());
