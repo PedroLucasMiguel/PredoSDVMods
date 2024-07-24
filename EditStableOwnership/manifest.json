@@ -6,5 +6,7 @@
   "UniqueID": "predo.sdvmods.EditStableOwnership",
   "EntryDll": "EditStableOwnership.dll",
   "MinimumApiVersion": "4.0.0",
-  "UpdateKeys": []
+  "UpdateKeys": [
+    "PedroLucasMiguel/PredoSDVMods"
+  ]
 }
