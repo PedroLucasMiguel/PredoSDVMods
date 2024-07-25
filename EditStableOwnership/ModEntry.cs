@@ -15,8 +15,14 @@ namespace predo.sdvmods.EditStableOwnership
     internal sealed class ModEntry : Mod
     {
         private static ModConfig _modConfig = new ModConfig();
-
         private static bool _enableMod = true;
+        private static bool _isDialogActive = false;
+        private static int _dialogSkip = 0;
+        private static List<Response> _responses = new();
+        private static Stable? _stable; 
+        private static FarmerCollection? _farmers;
+        private static string? _farmerUMI;
+        private static bool _showDialogAgain = true; 
 
         /*********
         ** Public methods
@@ -30,6 +36,7 @@ namespace predo.sdvmods.EditStableOwnership
             helper.Events.GameLoop.GameLaunched += OnGameLaunched;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
+            helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
         }
 
         /*********
@@ -92,39 +99,53 @@ namespace predo.sdvmods.EditStableOwnership
                 
         }
 
-        /// <summary>Set a new owner for a given stable.</summary>
-        private void SetNewStableOwner(Stable stable, string farmer_umi, FarmerCollection farmers)
+        private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
         {
-            foreach(var farmer in farmers)
+            if (!_isDialogActive)
+                return;
+
+            if (_showDialogAgain)
             {
-                if (farmer.UniqueMultiplayerID.ToString() == farmer_umi)
+                Game1.currentLocation.createQuestionDialogue(I18n.Dialog_ChooseNewOwner(), 
+                    _responses.ToArray().Skip(_dialogSkip).Take(4).ToArray(), 
+                    new GameLocation.afterQuestionBehavior(
+                        (Farmer who, string dialogue_id) => {
+                            if (dialogue_id == "0")
+                            {
+                                _dialogSkip += 4;
+                                _showDialogAgain = true;
+                            }
+                            else
+                            {
+                                _farmerUMI = dialogue_id;
+                                _isDialogActive = false;
+                                SetNewStableOwner();
+                            }
+                                
+                        }
+                    )
+                );
+
+                _showDialogAgain = false;
+            }
+        }
+
+        /// <summary>Set a new owner for a given stable.</summary>
+        private void SetNewStableOwner()
+        {
+            foreach(var farmer in _farmers)
+            {
+                if (farmer.UniqueMultiplayerID.ToString() == _farmerUMI)
                 {
-                    this.Monitor.Log($"Previous owner: {stable.owner.Value} - New owner: {farmer.UniqueMultiplayerID}", LogLevel.Info);
-                    stable.owner.Value = farmer.UniqueMultiplayerID;
-                    Horse horse = stable.getStableHorse();
+                    Monitor.Log($"Previous owner: {_stable.owner.Value} - New owner: {farmer.UniqueMultiplayerID}", LogLevel.Info);
+                    _stable.owner.Value = farmer.UniqueMultiplayerID;
+                    Horse horse = _stable.getStableHorse();
                     horse.ownerId.Value = farmer.UniqueMultiplayerID;
                     horse.Name = "";
                     Game1.addHUDMessage(new HUDMessage(I18n.Alert_StableNewOwner()+farmer.Name, HUDMessage.newQuest_type) { timeLeft = 2000 });
                     break;
                 }
             }
-        }
-
-        /// <summary>Run the ownership dialog recursively in order to show only 3 players per dialog.</summary>
-        private void RecursiveOwnerDialog(Response[] responses, int skip, Stable stable, FarmerCollection farmers)
-        {
-            Game1.currentLocation.createQuestionDialogue(I18n.Dialog_ChooseNewOwner(), 
-                responses.Skip(skip).Take(4).ToArray(), 
-                new GameLocation.afterQuestionBehavior(
-                    (Farmer who, string dialogue_id) => {
-                        if (dialogue_id != "0"){
-                            SetNewStableOwner(stable, dialogue_id, farmers);
-                        }
-                        else
-                            RecursiveOwnerDialog(responses, skip+4, stable, farmers);
-                    }
-                )
-            );
         }
 
         /// <summary>Start the process to change the stable ownership.</summary>
@@ -136,27 +157,24 @@ namespace predo.sdvmods.EditStableOwnership
             // Checking if it is actually a stable
             if (building is Stable)
             {
-                Stable stable = (Stable)building;
-
-                List<Response> responses = new List<Response>();
+                _stable = (Stable)building;
+                _farmers = farmers;
 
                 // Creating the responses for the dialog
                 int i = 0;
                 foreach(var farmer in farmers)
                 {
-                    responses.Add(new Response($"{farmer.UniqueMultiplayerID}", $"{farmer.Name}"));
+                    _responses.Add(new Response($"{farmer.UniqueMultiplayerID}", $"{farmer.Name}"));
 
                     // For every 3 player, put a response to show more players
                     if (i != 0 && i % 2 == 0)
-                        responses.Add(new Response($"0", $"Show more ->"));
+                        _responses.Add(new Response($"0", $"Show more ->"));
 
                     i++;
                 }
 
-                Response[] responses_array = responses.ToArray<Response>();
-
-                // Calling the recursive dialog
-                RecursiveOwnerDialog(responses_array, 0, stable, farmers);
+                // Start dialog
+                _isDialogActive = true;
             }
         }
     }
